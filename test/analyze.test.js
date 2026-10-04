@@ -145,6 +145,8 @@ test('genuine Microsoft 365 headers: internal hops skipped, Received-SPF and A-R
   const checked = await analyzeMessage(raw, { live: true, resolver: fakeResolver({ 'gmail.com': { TXT: ['v=spf1 ip4:209.85.128.0/17 -all'] } }), fetcher: fakeLogo });
   assert.equal(checked.live.spf.domain, 'gmail.com');
   assert.equal(checked.live.spf.result, 'pass');
+  // Microsoft's internal relay names don't resolve publicly; its published ranges vouch for them instead.
+  assert.ok(!titles(checked).some(t => t.includes("recipient's own server")), titles(checked).join('\n'));
   assert.ok(!r.flags.some(f => f.title.startsWith('Forged')), titles(r).join('\n'));
 });
 
@@ -155,6 +157,43 @@ test('a forged HELO name cannot make the entry hop look internal', async () => {
   const r = await analyzeMessage(raw, { live: false });
   assert.equal(r.senderIp, '203.0.113.66');
   assert.ok(titles(r).includes('Forged Received-SPF header'));
+});
+
+// Exchange-style Received lines record "from HELO (IP)" with no reverse DNS, so the HELO name - chosen by
+// the sender - is all there is to go on. A sender HELOs as one of the recipient's servers and adds a fake hop.
+const heloSpoof = (forged = []) => bytes([
+  'Received: from relay.recipient.example (203.0.113.66) by mx.recipient.example (10.1.1.5) with Microsoft SMTP Server id 15.2; Fri, 03 Oct 2025 14:12:01 +0000',
+  ...forged,
+  'Received: from mail.bank.example (mail.bank.example [198.51.100.10]) by mx2.recipient.example with ESMTPS; Fri, 03 Oct 2025 14:12:00 +0000',
+  'Return-Path: <alerts@bank.example>', 'From: Bank <alerts@bank.example>', 'To: v@recipient.example', 'Subject: Verify',
+  'Date: Fri, 03 Oct 2025 14:11:59 +0000', 'Message-ID: <9@bank.example>', ''].join('\n'));
+
+for (const [name, forged] of [['fake hop', []], ['fake hop and forged Received-SPF', ['Received-SPF: pass client-ip=198.51.100.10; envelope-from=alerts@bank.example']]]) {
+  test(`spoofed HELO in the recipient's domain plus ${name} is caught (live)`, async () => {
+    const r = await analyzeMessage(heloSpoof(forged), { live: true, resolver: fakeResolver(BANK_DNS), fetcher: fakeLogo });
+    assert.equal(r.senderIp, '203.0.113.66', r.senderIpSource);
+    assert.equal(r.live.dmarc.result, 'fail');
+    assert.ok(titles(r).includes("Sender used the recipient's own server name"), titles(r).join('\n'));
+    assert.equal(r.verdict.level, 'high');
+  });
+}
+
+test("spoofed HELO in the recipient's domain is not trusted offline either", async () => {
+  const r = await analyzeMessage(heloSpoof(), { live: false });
+  assert.equal(r.senderIp, '203.0.113.66');
+  assert.ok(titles(r).includes("Sender claims to be the recipient's own server"), titles(r).join('\n'));
+  assert.notEqual(r.verdict.level, 'ok');
+});
+
+test('a HELO-only internal hop counts as internal when its name resolves to its IP', async () => {
+  const raw = bytes([
+    'Received: from relay.recipient.example (192.0.2.25) by mx.recipient.example with ESMTP; Fri, 03 Oct 2025 14:12:02 +0000',
+    'Received: from mail.sender.example (mail.sender.example [198.51.100.20]) by relay.recipient.example with ESMTPS; Fri, 03 Oct 2025 14:12:01 +0000',
+    'From: A <a@sender.example>', 'To: v@recipient.example', 'Subject: hi', 'Date: Fri, 03 Oct 2025 14:12:00 +0000', 'Message-ID: <1@sender.example>', ''].join('\n'));
+  const resolver = fakeResolver({ 'relay.recipient.example': { A: ['192.0.2.25'] } });
+  const r = await analyzeMessage(raw, { live: true, resolver, fetcher: fakeLogo });
+  assert.equal(r.senderIp, '198.51.100.20');
+  assert.ok(!titles(r).some(t => t.includes("recipient's own server")), titles(r).join('\n'));
 });
 
 test('IP addresses compare in canonical form', () => {
