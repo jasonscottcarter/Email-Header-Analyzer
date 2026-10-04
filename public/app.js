@@ -211,7 +211,8 @@ function renderPath(r) {
   const rows = r.hops.map(h => {
     const tags = [h.senderIp ? '<span class="tag sender">sender IP</span>' : '', h.privateIp ? '<span class="tag">private</span>' : '',
       h.authenticated ? '<span class="tag auth">authenticated</span>' : '',
-      h.entry ? '<span class="tag" title="Everything below this hop was written before the message reached the recipient\'s mail system">entered recipient\'s system</span>' : ''].join('');
+      h.entry ? '<span class="tag" title="Everything below this hop was written before the message reached the recipient\'s mail system">entered recipient\'s system</span>' : '',
+      h.crossTenant ? '<span class="tag" title="Handed from the sending Microsoft 365 tenant to the recipient\'s tenant">Microsoft cross-tenant</span>' : ''].join('');
     const from = [h.helo && `<span class="mono">${esc(h.helo)}</span>`, h.rdns && h.rdns !== h.helo && `<span class="muted">rDNS</span> ${esc(h.rdns)}`, h.ip && `<span class="mono">${esc(h.ip)}</span>`].filter(Boolean).join('<br>');
     const proto = h.protocol ? esc(h.protocol) : '';
     const tls = h.ip || h.protocol ? (h.tls ? `<span class="tag tls">🔒 ${esc(h.tlsVersion || 'TLS')}</span>` : (h.ip && !h.privateIp ? '<span class="tag notls">no TLS shown</span>' : '')) : '';

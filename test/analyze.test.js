@@ -196,6 +196,50 @@ test('a HELO-only internal hop counts as internal when its name resolves to its 
   assert.ok(!titles(r).some(t => t.includes("recipient's own server")), titles(r).join('\n'));
 });
 
+// Microsoft 365 tenant to tenant: the hop from *.outbound.protection.outlook.com is the cross-tenant
+// boundary, even though its IP is in Microsoft's range like the internal hops on either side.
+const crossTenant = ({ withAr, envelope = 'alerts@bank.example', from = 'Bank <alerts@bank.example>' }) => bytes([
+  'Received: from BN8NAM12FT012.eop-nam12.prod.protection.outlook.com (2603:10b6:408:ef::4) by MN2PR11MB4000.namprd11.prod.outlook.com (2603:10b6:208:1a::20) with Microsoft SMTP Server (version=TLS1_2, cipher=X) id 15.20; Fri, 3 Oct 2025 14:12:03 +0000',
+  ...(withAr ? [`Authentication-Results: spf=fail (sender IP is 40.107.200.10) smtp.mailfrom=${envelope.split('@').pop()}; dmarc=fail action=oreject header.from=${envelope.split('@').pop()};compauth=fail reason=000`] : []),
+  'Received: from NAM12-BN8-obe.outbound.protection.outlook.com (40.107.200.10) by BN8NAM12FT012.mail.protection.outlook.com (10.13.182.66) with Microsoft SMTP Server (version=TLS1_2, cipher=X) id 15.20; Fri, 3 Oct 2025 14:12:02 +0000',
+  'Received: from DM6PR02MB1111.namprd02.prod.outlook.com (2603:10b6:5:3a::9) by DM6PR02MB2222.namprd02.prod.outlook.com (2603:10b6:5:3b::1) with Microsoft SMTP Server (version=TLS1_2, cipher=X) id 15.20; Fri, 3 Oct 2025 14:12:01 +0000',
+  'Received: from mail.bank.example (mail.bank.example [198.51.100.10]) by DM6PR02MB1111.namprd02.prod.outlook.com with ESMTPS; Fri, 3 Oct 2025 14:12:00 +0000',
+  `Return-Path: <${envelope}>`, `From: ${from}`, 'To: v@contoso.example', 'Subject: Verify',
+  'Date: Fri, 03 Oct 2025 14:11:59 +0000', 'Message-ID: <9@example.net>', ''].join('\n'));
+
+for (const withAr of [false, true]) {
+  test(`cross-tenant spoof with a forged hop is caught (${withAr ? 'with' : 'without'} the recipient's Authentication-Results)`, async () => {
+    const r = await analyzeMessage(crossTenant({ withAr }), { live: true, resolver: fakeResolver(BANK_DNS), fetcher: fakeLogo });
+    const entry = r.hops.find(h => h.entry);
+    assert.equal(entry.helo, 'NAM12-BN8-obe.outbound.protection.outlook.com');
+    assert.equal(entry.crossTenant, true);
+    assert.equal(r.senderIp, '40.107.200.10');
+    assert.equal(r.live.dmarc.result, 'fail');
+    assert.equal(r.verdict.level, 'high');
+    assert.equal(titles(r).includes('Headers look incomplete'), !withAr, titles(r).join('\n'));
+  });
+}
+
+test('legitimate tenant-to-tenant mail still passes', async () => {
+  const raw = crossTenant({ withAr: false, envelope: 'billing@fabrikam.example', from: 'Fabrikam <billing@fabrikam.example>' })
+    .replace(/Received: from mail\.bank\.example[^\n]*\n/, '');
+  const resolver = fakeResolver({
+    'fabrikam.example': { TXT: ['v=spf1 include:spf.protection.outlook.com -all'] },
+    'spf.protection.outlook.com': { TXT: ['v=spf1 ip4:40.92.0.0/15 ip4:40.107.0.0/16 ip4:52.100.0.0/14 ip4:104.47.0.0/17 -all'] },
+    '_dmarc.fabrikam.example': { TXT: ['v=DMARC1; p=reject'] },
+  });
+  const r = await analyzeMessage(raw, { live: true, resolver, fetcher: fakeLogo });
+  assert.equal(r.senderIp, '40.107.200.10');
+  assert.equal(r.live.spf.result, 'pass', JSON.stringify(r.live.spf));
+  assert.equal(r.live.dmarc.result, 'pass');
+  assert.ok(!r.flags.some(f => f.level === 'high'), titles(r).join('\n'));
+});
+
+test('no "incomplete" warning when the receiver is not Microsoft or Gmail, or when its results are present', async () => {
+  assert.ok(!titles(await analyzeMessage(spoofed([]), { live: false })).includes('Headers look incomplete'));
+  assert.ok(!titles(await analyzeMessage(fixture('phish-headers.txt'), { live: false })).includes('Headers look incomplete'));
+});
+
 test('IP addresses compare in canonical form', () => {
   const { normalizeIp } = require('../lib/parse');
   assert.equal(normalizeIp('2001:DB8::1'), normalizeIp('2001:db8:0:0:0:0:0:1'));
