@@ -55,6 +55,19 @@ test('empty input is a 400, not a crash', async () => {
   assert.equal(res.status, 400);
 });
 
+test('cross-site requests are refused', async () => {
+  // A page on another site can send a "simple" text/plain POST without a CORS preflight.
+  const simple = await request('/analyze-file?live=0', { body: phish, headers: { 'Content-Type': 'text/plain', Origin: 'https://evil.example' } });
+  assert.equal(simple.status, 403);
+  const noOrigin = await request('/analyze-file?live=0', { body: phish, headers: { 'Content-Type': 'text/plain' } });
+  assert.equal(noOrigin.status, 415);
+  const json = await request('/analyze', { body: JSON.stringify({ text: 'From: a@b.com' }), headers: { 'Content-Type': 'application/json', Origin: 'http://evil.example' } });
+  assert.equal(json.status, 403);
+  // the app's own page is allowed
+  const own = await request('/analyze-file?live=0', { body: phish, headers: { 'Content-Type': 'application/octet-stream', Origin: base } });
+  assert.equal(own.status, 200);
+});
+
 test('requests for other host names are refused (DNS rebinding protection)', async () => {
   const res = await request('/', { method: 'GET', headers: { Host: 'attacker.example' } });
   assert.equal(res.status, 403);

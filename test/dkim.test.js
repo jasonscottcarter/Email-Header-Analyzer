@@ -67,6 +67,29 @@ test('revoked, missing and unreachable keys', async () => {
   assert.equal((await verify(await forSelector('down'))).result, 'temperror');
 });
 
+test('key restrictions and identity are enforced (RFC 6376)', async () => {
+  const restricted = fakeResolver({
+    'sha1only._domainkey.example.com': { TXT: [`v=DKIM1; k=rsa; h=sha1; p=${rsa.dnsP}`] },
+    'web._domainkey.example.com': { TXT: [`v=DKIM1; k=rsa; s=web; p=${rsa.dnsP}`] },
+    'any._domainkey.example.com': { TXT: [`v=DKIM1; k=rsa; s=*; h=sha256:sha1; p=${rsa.dnsP}`] },
+  });
+  const check = async raw => {
+    const { headerText, body } = P.splitMessage(raw);
+    return (await dkim.verifyAll(P.parseHeaders(headerText), body, restricted.resolveTxt))[0];
+  };
+  const signed = s => sign(MESSAGE, { domain: 'example.com', selector: s, privatePem: rsa.privatePem });
+  assert.match((await check(await signed('sha1only'))).detail, /hash algorithm/);
+  assert.match((await check(await signed('web'))).detail, /service type/);
+  assert.equal((await check(await signed('any'))).result, 'pass');
+
+  // An i= outside d= is a permerror. The header is edited after signing; the identity check runs before the
+  // cryptographic check, so the result is permerror rather than fail.
+  const withI = (await signed('any')).replace('d=example.com;', 'd=example.com; i=ceo@other.example;');
+  const r = await check(withI);
+  assert.equal(r.result, 'permerror');
+  assert.match(r.detail, /identity/);
+});
+
 test('body canonicalization follows RFC 6376', () => {
   assert.equal(dkim.canonBody('', 'simple'), '\r\n');
   assert.equal(dkim.canonBody('', 'relaxed'), '');

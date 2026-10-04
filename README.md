@@ -17,7 +17,7 @@ A local Node.js web app that takes apart an email's headers and shows whether th
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org) v20 or later (LTS). Verify with `node --version`
+- [Node.js](https://nodejs.org) v22 or later (LTS). Verify with `node --version`
 - [Git](https://git-scm.com). Verify with `git --version`
 
 ## Installation
@@ -81,7 +81,8 @@ email-header-analyzer/
 │   ├── parse.js       # Header, address, Received and Authentication-Results parsing
 │   └── vendors.js     # Decodes spam filter headers (Microsoft, SpamAssassin, ...)
 ├── public/
-│   └── index.html     # Frontend
+│   ├── app.js         # Frontend logic
+│   └── index.html     # Frontend page and styles
 ├── test/              # Tests (node --test), with fixtures
 ├── server.js          # Express server
 └── package.json
@@ -100,15 +101,15 @@ The tests use a fake DNS resolver, so they run offline. DKIM tests sign messages
 - **Live checks use today's DNS.** If a domain has rotated its DKIM key or changed its SPF record since the message was sent, a re-check can fail even though the message was genuine on arrival. Compare with the "Reported by receiving server" results.
 - **Headers from mail clients may be re-wrapped.** DKIM signatures using `simple` header canonicalization can fail on pasted headers whose lines were re-folded. Use the original `.eml` file when you can.
 - **`.msg` files have no original body**, so DKIM body hashes can't be checked. Drafts and sent items have no internet headers at all.
-- **The sending IP is inferred** from Received-SPF, Authentication-Results or the Received chain. Received headers below the recipient's own servers can be forged by the sender.
+- **Spotting forged trace headers is heuristic.** The tool finds the hop where the message entered the recipient's mail system and ignores any Received-SPF, Authentication-Results or Microsoft CIP that claims a sender IP the receiving servers didn't record, or that sits where only the sender could have written it. When the message arrived straight from the sender's server, a forged Authentication-Results header that makes no IP claim can't be told apart by position. The re-check still catches it, and a "Receiving server and re-check disagree" warning is raised.
 - **BIMI certificates (VMC/CMC) are not validated.** The tool shows the certificate URL but doesn't check the certificate chain.
 - **Blocklist results need care.** Spamhaus refuses queries sent through public DNS resolvers such as 8.8.8.8 or 1.1.1.1; the tool shows these as **Refused**, not clean. Only IPv4 addresses are checked, and at most 8 relay IPs per message.
 - **Red flags are heuristics.** "No red flags found" is not a guarantee. Always check links and attachments separately.
 
 ## Security notes
 
-- **Local only.** The server listens on `127.0.0.1` (this computer only) and rejects requests addressed to any other host name, which blocks DNS-rebinding attacks from websites.
-- **Header content is untrusted.** Everything taken from an email is escaped before display, and the page sends a strict Content-Security-Policy.
+- **Local only.** The server listens on `127.0.0.1` (this computer only). It rejects requests addressed to any other host name, which blocks DNS-rebinding attacks, and requests sent from other websites' pages. File uploads must use `application/octet-stream`, so browsers can't send them across sites without a CORS check that fails.
+- **Header content is untrusted.** Everything taken from an email is escaped before display, and the Content-Security-Policy only allows the page's own script file (no inline scripts), so even a missed escape couldn't run code.
 - **Live checks are visible to the sender.** DKIM key and BIMI lookups go to the sending domain's DNS servers, and the BIMI logo is downloaded from the URL it publishes. A targeted attacker could notice that their message is being examined. Turn **Live DNS checks** off for sensitive investigations.
 - **BIMI logos are fetched by the server, not your browser.** Only HTTPS URLs on public addresses are fetched, logos are limited to 64 KB of SVG, and they're displayed as images, where SVG scripts can't run.
 

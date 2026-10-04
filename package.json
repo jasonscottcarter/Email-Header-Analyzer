@@ -5,14 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/"
+    "test": "node --test \"test/*.test.js\""
   },
   "keywords": ["email", "headers", "dkim", "spf", "dmarc", "bimi", "phishing"],
   "author": "Jason Carter",
   "license": "MIT",
   "type": "commonjs",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "repository": {
     "type": "git",
