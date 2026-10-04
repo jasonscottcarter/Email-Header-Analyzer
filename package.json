@@ -1,0 +1,27 @@
+{
+  "name": "email-header-analyzer",
+  "version": "1.0.0",
+  "description": "Local web app that analyzes email headers, .eml and .msg files: delivery path, SPF/DKIM/DMARC/BIMI, spoofing red flags and spam filter verdicts",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/"
+  },
+  "keywords": ["email", "headers", "dkim", "spf", "dmarc", "bimi", "phishing"],
+  "author": "Jason Carter",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jasonscottcarter/Email-Header-Analyzer.git"
+  },
+  "dependencies": {
+    "@kenjiuno/msgreader": "^1.28.0",
+    "express": "^5.2.1",
+    "mailauth": "^7.1.1",
+    "tldts": "^7.4.16"
+  }
+}

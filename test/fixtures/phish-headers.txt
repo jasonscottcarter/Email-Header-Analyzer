@@ -1,0 +1,29 @@
+Delivered-To: victim@example.org
+Received: by 2002:a05:7300:5a0e:b0:14d:9a1c with SMTP id x14csp1234567dyb;
+        Fri, 3 Oct 2025 07:12:09 -0700 (PDT)
+X-Received: by 2002:a17:90b:1c8f with SMTP id oo15mr2;
+        Fri, 03 Oct 2025 07:12:09 -0700 (PDT)
+ARC-Seal: i=1; a=rsa-sha256; t=1759500729; cv=none; d=google.com; s=arc-20240605; b=abc
+Return-Path: <bounce-77@mailer.bulk-sender.net>
+Received: from mail.bulk-sender.net (mail.bulk-sender.net. [203.0.113.45])
+        by mx.google.com with ESMTP id 5a478bee46e88-2a1b2c3d4e5si123456eaf.12.2025.10.03.07.12.08
+        for <victim@example.org>;
+        Fri, 03 Oct 2025 07:12:08 -0700 (PDT)
+Received-SPF: softfail (google.com: domain of transitioning bounce-77@mailer.bulk-sender.net does not designate 203.0.113.45 as permitted sender) client-ip=203.0.113.45;
+Authentication-Results: mx.google.com;
+       spf=softfail (google.com: domain of transitioning bounce-77@mailer.bulk-sender.net does not designate 203.0.113.45 as permitted sender) smtp.mailfrom=bounce-77@mailer.bulk-sender.net;
+       dmarc=fail (p=REJECT sp=REJECT dis=QUARANTINE) header.from=paypal.com
+Received: from [192.168.1.20] (unknown [198.51.100.7])
+        by mail.bulk-sender.net (Postfix) with ESMTPSA id 4F1A2B3C
+        for <victim@example.org>; Fri, 03 Oct 2025 14:12:05 +0000 (UTC)
+From: "service@paypal.com" <service@paypa1-security.com>
+Reply-To: billing@secure-mailbox.ru
+To: victim@example.org
+Subject: =?UTF-8?B?WW91ciBhY2NvdW50IGhhcyBiZWVuIGxpbWl0ZWQg4pqg77iP?=
+Date: Fri, 03 Oct 2025 14:12:00 +0000
+Message-ID: <20251003141200.1234@paypa1-security.com>
+X-Mailer: PHPMailer 6.8.0 (https://github.com/PHPMailer/PHPMailer)
+X-PHP-Originating-Script: 33:mailer.php
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+Authentication-Results: fake.example; dkim=pass header.d=paypal.com; spf=pass

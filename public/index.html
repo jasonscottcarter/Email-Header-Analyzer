@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Header Analyzer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', sans-serif; min-height: 100vh; padding: 40px 20px; }
+    h1 { text-align: center; font-size: 1.6rem; color: #58a6ff; margin-bottom: 8px; letter-spacing: 1px; }
+    .subtitle { text-align: center; color: #8b949e; font-size: 0.85rem; margin-bottom: 30px; }
+    .wrap { max-width: 1000px; margin: 0 auto; }
+    button { padding: 10px 22px; background: #238636; border: none; border-radius: 8px; color: #fff; font-size: 0.95rem; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: #2ea043; }
+    button:disabled { background: #3d4451; cursor: not-allowed; }
+    button.secondary { background: #21262d; border: 1px solid #30363d; color: #e6edf3; }
+    button.secondary:hover { background: #30363d; }
+    .drop { background: #161b22; border: 2px dashed #30363d; border-radius: 10px; padding: 16px; transition: border-color 0.2s, background 0.2s; }
+    .drop.hover { border-color: #58a6ff; background: #13233a; }
+    textarea { width: 100%; min-height: 220px; resize: vertical; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #e6edf3; padding: 12px 14px; font-family: Consolas, monospace; font-size: 0.8rem; outline: none; }
+    textarea:focus { border-color: #58a6ff; }
+    .drop-hint { color: #8b949e; font-size: 0.8rem; margin: 10px 2px 0; }
+    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+    .controls label { color: #8b949e; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .controls .grow { flex: 1; }
+    .file-chip { background: #1f4068; color: #58a6ff; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; }
+    .spinner { text-align: center; color: #8b949e; font-size: 0.9rem; padding: 40px; }
+    .results { margin-top: 24px; display: flex; flex-direction: column; gap: 16px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
+    .card-title { font-weight: 700; font-size: 1rem; color: #58a6ff; }
+    .sub-title { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 8px; }
+    .sub-title:first-child { margin-top: 0; }
+    .pass, .ok { color: #56d364; font-weight: 700; }
+    .fail, .high { color: #f85149; font-weight: 700; }
+    .warn, .medium { color: #e3b341; font-weight: 700; }
+    .low { color: #79c0ff; font-weight: 700; }
+    .info, .muted { color: #8b949e; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .info-row { display: flex; flex-direction: column; background: #21262d; border-radius: 6px; padding: 8px 12px; min-width: 0; }
+    .info-label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; margin-bottom: 2px; }
+    .info-value { font-size: 0.88rem; color: #e6edf3; word-break: break-word; }
+    .full-width { grid-column: 1 / -1; }
+    .record-box { background: #21262d; border-radius: 6px; padding: 10px 12px; font-size: 0.78rem; color: #8b949e; word-break: break-all; font-family: monospace; margin-top: 8px; }
+    .summary-bar { display: flex; gap: 10px; flex-wrap: wrap; }
+    .summary-pill { padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
+    .pill-pass { background: #1a3a2a; color: #56d364; }
+    .pill-fail { background: #3a1a1a; color: #f85149; }
+    .pill-warn { background: #3a2d1a; color: #e3b341; }
+    .pill-info { background: #1f2a3a; color: #79c0ff; }
+    .pill-muted { background: #21262d; color: #8b949e; }
+    .verdict { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+    .verdict-badge { font-size: 1.25rem; font-weight: 700; padding: 8px 18px; border-radius: 8px; }
+    .verdict-high { background: #3a1a1a; color: #f85149; }
+    .verdict-medium { background: #3a2d1a; color: #e3b341; }
+    .verdict-ok { background: #1a3a2a; color: #56d364; }
+    .flag { background: #21262d; border-left: 4px solid #8b949e; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
+    .flag.high { border-color: #f85149; } .flag.medium { border-color: #e3b341; } .flag.low { border-color: #79c0ff; }
+    .flag-title { font-weight: 600; font-size: 0.9rem; }
+    .flag-detail { color: #8b949e; font-size: 0.82rem; margin-top: 3px; word-break: break-word; }
+    .flag-level { font-size: 0.68rem; text-transform: uppercase; margin-right: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th { text-align: left; color: #8b949e; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid #30363d; }
+    td { padding: 8px; border-bottom: 1px solid #21262d; vertical-align: top; word-break: break-word; }
+    tr.sender-row td { background: #13233a; }
+    .tag { display: inline-block; font-size: 0.68rem; padding: 1px 7px; border-radius: 10px; margin: 2px 4px 0 0; background: #21262d; color: #8b949e; }
+    .tag.tls { background: #1a3a2a; color: #56d364; } .tag.notls { background: #3a2d1a; color: #e3b341; }
+    .tag.sender { background: #1f4068; color: #58a6ff; } .tag.auth { background: #2d1f3a; color: #d2a8ff; }
+    .mono { font-family: Consolas, monospace; font-size: 0.78rem; }
+    .auth-row { display: grid; grid-template-columns: 90px 110px 1fr; gap: 10px; background: #21262d; border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; font-size: 0.82rem; align-items: start; }
+    .auth-method { font-weight: 700; text-transform: uppercase; color: #e6edf3; }
+    .notes { margin-top: 4px; color: #8b949e; font-size: 0.78rem; }
+    .notes li { margin-left: 18px; }
+    .bimi { display: flex; gap: 18px; align-items: flex-start; background: #21262d; border-radius: 8px; padding: 14px; }
+    .bimi img { width: 96px; height: 96px; border-radius: 50%; background: #fff; padding: 6px; object-fit: contain; flex-shrink: 0; }
+    .bimi .no-logo { width: 96px; height: 96px; border-radius: 50%; background: #161b22; border: 1px dashed #30363d; display: flex; align-items: center; justify-content: center; color: #8b949e; font-size: 0.7rem; text-align: center; flex-shrink: 0; }
+    .check-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .check { background: #21262d; border-radius: 6px; padding: 8px 10px; font-size: 0.78rem; display: flex; gap: 6px; align-items: center; }
+    .check.ok { color: #56d364; } .check.bad { color: #f85149; }
+    .delay-bar { height: 4px; border-radius: 2px; background: #58a6ff; margin-top: 4px; min-width: 2px; }
+    .delay-bar.slow { background: #e3b341; } .delay-bar.neg { background: #f85149; }
+    .rbl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .rbl-item { background: #21262d; border-radius: 6px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; }
+    details summary { cursor: pointer; color: #58a6ff; font-weight: 700; }
+    .filter { width: 100%; margin: 12px 0; padding: 8px 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; outline: none; }
+    .error { color: #f85149; }
+    @media (max-width: 700px) { .info-grid, .rbl-grid, .check-grid { grid-template-columns: 1fr; } .auth-row { grid-template-columns: 1fr; } table { font-size: 0.72rem; } }
+  </style>
+</head>
+<body>
+  <h1>📨 Email Header Analyzer</h1>
+  <p class="subtitle">Paste a full email header, or drop a .eml / .msg file - it's analyzed locally on this machine</p>
+
+  <div class="wrap">
+    <div class="drop" id="drop">
+      <textarea id="headers" spellcheck="false" placeholder="Paste the full email header here...&#10;&#10;Outlook: open the message > File > Properties > Internet headers&#10;Gmail: open the message > ⋮ > Show original&#10;&#10;...or drag and drop a .eml or .msg file onto this box."></textarea>
+      <p class="drop-hint">Tip: Ctrl+Enter to analyze. Dropping a full .eml file also lets DKIM verify the message body.</p>
+      <div class="controls">
+        <button id="analyzeBtn">Analyze</button>
+        <button class="secondary" id="fileBtn">Choose file…</button>
+        <button class="secondary" id="clearBtn">Clear</button>
+        <input type="file" id="fileInput" accept=".eml,.msg,.txt,message/rfc822" hidden>
+        <span id="fileChip"></span>
+        <span class="grow"></span>
+        <label title="Looks up DKIM keys, SPF, DMARC, BIMI, reverse DNS and blocklists. The domains in the email can see these DNS lookups."><input type="checkbox" id="live" checked> Live DNS checks</label>
+      </div>
+    </div>
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    let pendingFile = null;
+
+    $('analyzeBtn').onclick = () => pendingFile ? analyzeFile(pendingFile) : analyzeText();
+    $('fileBtn').onclick = () => $('fileInput').click();
+    $('fileInput').onchange = e => { if (e.target.files[0]) useFile(e.target.files[0]); e.target.value = ''; };
+    $('clearBtn').onclick = () => { $('headers').value = ''; setFile(null); $('results').innerHTML = ''; $('headers').focus(); };
+    $('headers').addEventListener('input', () => setFile(null));
+    $('headers').addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) $('analyzeBtn').click(); });
+
+    // Drag and drop: the input box is the target; dropping elsewhere must not navigate away.
+    const drop = $('drop');
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+    drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) useFile(f); });
+    window.addEventListener('dragover', e => e.preventDefault());
+    window.addEventListener('drop', e => e.preventDefault());
+
+    function setFile(f) {
+      pendingFile = f;
+      $('fileChip').innerHTML = f ? `<span class="file-chip">📎 ${esc(f.name)} (${(f.size / 1024).toFixed(1)} KB)</span>` : '';
+    }
+    function useFile(f) {
+      $('headers').value = '';
+      setFile(f);
+      analyzeFile(f);
+    }
+
+    async function run(request) {
+      const btn = $('analyzeBtn');
+      btn.disabled = true;
+      $('results').innerHTML = `<div class="spinner">⏳ Analyzing${$('live').checked ? ' and running live DNS checks' : ''}...</div>`;
+      try {
+        const res = await request();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        render(data);
+      } catch (err) {
+        $('results').innerHTML = `<div class="results"><div class="card error">⚠️ ${esc(err.message)}</div></div>`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    function analyzeText() {
+      const text = $('headers').value;
+      if (!text.trim()) return $('headers').focus();
+      run(() => fetch('/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, live: $('live').checked }) }));
+    }
+    function analyzeFile(f) {
+      run(() => fetch(`/analyze-file?live=${$('live').checked ? 1 : 0}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: f }));
+    }
+
+    // ------------------------------------------------------------------ helpers
+    const pillClass = r => ({ pass: 'pill-pass', 'pass-headers': 'pill-pass', ok: 'pill-pass', none: 'pill-muted', neutral: 'pill-muted',
+      softfail: 'pill-warn', 'body-mismatch': 'pill-warn', temperror: 'pill-warn', medium: 'pill-warn', low: 'pill-info', info: 'pill-muted' }[r] || 'pill-fail');
+    const pill = (text, result) => `<span class="summary-pill ${pillClass(result)}">${esc(text)}</span>`;
+    const row = (label, value, cls = '') => value || value === 0 ? `<div class="info-row ${cls}"><span class="info-label">${esc(label)}</span><span class="info-value">${value}</span></div>` : '';
+    const addr = a => a ? (a.name ? `${esc(a.name)} <span class="muted">&lt;${esc(a.address)}&gt;</span>` : esc(a.address)) : '';
+    const time = iso => iso ? `${esc(new Date(iso).toLocaleString())}` : '';
+    function delay(s) {
+      if (s == null) return '';
+      const neg = s < 0, a = Math.abs(s);
+      const txt = a < 60 ? `${a}s` : a < 3600 ? `${Math.floor(a / 60)}m ${String(a % 60).padStart(2, '0')}s` : `${Math.floor(a / 3600)}h ${String(Math.floor(a % 3600 / 60)).padStart(2, '0')}m`;
+      return neg ? `<span class="fail">−${txt}</span>` : a > 3600 ? `<span class="warn">+${txt}</span>` : `+${txt}`;
+    }
+    const notes = list => list && list.length ? `<ul class="notes">${list.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : '';
+
+    // ------------------------------------------------------------------ render
+    function render(r) {
+      $('results').innerHTML = `<div class="results">${[renderVerdict(r), renderFlags(r), renderMessage(r), renderAuth(r), renderPath(r),
+        renderSenderIp(r), renderVendors(r), renderHeaders(r)].join('')}</div>`;
+      const f = $('hdrFilter');
+      if (f) f.oninput = () => {
+        const q = f.value.toLowerCase();
+        document.querySelectorAll('#hdrTable tr[data-s]').forEach(tr => { tr.style.display = tr.dataset.s.includes(q) ? '' : 'none'; });
+      };
+    }
+
+    function renderVerdict(r) {
+      const counts = ['high', 'medium', 'low'].map(l => [l, r.flags.filter(f => f.level === l).length]).filter(([, n]) => n);
+      const top = r.authResults[0];
+      const reported = top ? top.results.filter(x => ['spf', 'dkim', 'dmarc', 'compauth', 'arc'].includes(x.method)).map(x => pill(`${x.method.toUpperCase()}: ${x.result}`, x.result)).join('') : pill('No receiver auth results', 'none');
+      let checked = '';
+      if (r.live) {
+        const d = r.live.dkim;
+        const dk = d.length ? (d.some(x => x.result.startsWith('pass')) ? 'pass' : d[0].result) : 'none';
+        checked = [pill(`DKIM: ${dk}`, dk), pill(`SPF: ${r.live.spf.result}`, r.live.spf.result), pill(`DMARC: ${r.live.dmarc.result}`, r.live.dmarc.result),
+          r.live.bimi.found ? (r.live.dmarc.result === 'pass' ? pill('BIMI', r.live.bimi.logo?.dataUri ? 'pass' : 'softfail') : pill('BIMI: logo not earned (DMARC failed)', 'fail')) : ''].join('');
+      }
+      const src = { paste: 'Pasted headers', eml: '.eml file', msg: 'Outlook .msg file' }[r.source.kind] + (r.source.hasBody ? ' (full message)' : ' (headers only)');
+      return `<div class="card"><div class="verdict"><span class="verdict-badge verdict-${r.verdict.level}">${esc(r.verdict.label)}</span>
+        <div class="summary-bar">${counts.map(([l, n]) => pill(`${n} ${l}`, l === 'high' ? 'fail' : l)).join('') || pill('0 issues', 'pass')}</div></div>
+        <div class="sub-title">Reported by receiving server${top ? ` (${esc(top.authserv)})` : ''}</div><div class="summary-bar">${reported}</div>
+        ${r.live ? `<div class="sub-title">Re-checked now</div><div class="summary-bar">${checked}</div>${compliance(r)}` : ''}
+        <p class="notes" style="margin-top:12px">${esc(src)} · ${r.source.headerCount} headers · ${r.hops.length} hops${r.totalSeconds != null ? ` · delivered in ${delay(r.totalSeconds).replace(/^\+/, '')}` : ''}</p></div>`;
+    }
+
+    // DMARC needs SPF or DKIM to both pass (authenticated) and match the From domain (aligned).
+    function compliance(r) {
+      const c = r.live.dmarc.checks;
+      const cell = (label, ok, hint) => `<div class="check ${ok ? 'ok' : 'bad'}" title="${esc(hint)}"><span>${ok ? '✅' : '❌'}</span>${esc(label)}</div>`;
+      const dm = r.live.dmarc.result;
+      return `<div class="sub-title">DMARC compliance</div><div class="check-grid">
+        ${cell(`DMARC ${dm === 'pass' ? 'compliant' : dm === 'none' ? 'not published' : 'not compliant'}`, dm === 'pass', r.live.dmarc.detail)}
+        ${cell('SPF authenticated', c.spfAuthenticated, 'The sending IP is allowed by the envelope domain\'s SPF record')}
+        ${cell('SPF aligned', c.spfAligned, 'The envelope (Return-Path) domain matches the From domain')}
+        ${cell('DKIM authenticated', c.dkimAuthenticated, 'At least one DKIM signature verifies')}
+        ${cell('DKIM aligned', c.dkimAligned, 'A DKIM signature\'s d= domain matches the From domain')}</div>`;
+    }
+
+    function renderFlags(r) {
+      if (!r.flags.length) return `<div class="card"><div class="card-title">Red flags</div><p class="muted" style="margin-top:10px">Nothing suspicious found in these headers. That doesn't prove the message is safe - check links and attachments too.</p></div>`;
+      return `<div class="card"><div class="card-header"><span class="card-title">Red flags</span></div>${r.flags.map(f =>
+        `<div class="flag ${f.level}"><div class="flag-title"><span class="flag-level ${f.level}">${esc(f.level)}</span>${esc(f.title)}</div><div class="flag-detail">${esc(f.detail)}</div></div>`).join('')}</div>`;
+    }
+
+    function renderMessage(r) {
+      const s = r.summary;
+      return `<div class="card"><div class="card-header"><span class="card-title">Message</span></div><div class="info-grid">
+        ${row('From', addr(s.from), 'full-width')}
+        ${row('Subject', esc(s.subject), 'full-width')}
+        ${row('To', s.to.map(addr).join(', '))}
+        ${row('Cc', s.cc.map(addr).join(', '))}
+        ${row('Reply-To', s.replyTo.map(addr).join(', '))}
+        ${row('Return-Path (envelope sender)', esc(r.envelopeFrom))}
+        ${row('Date', s.date ? `${time(s.date)} <span class="muted">(${esc(s.dateRaw)})</span>` : esc(s.dateRaw))}
+        ${row('Message-ID', `<span class="mono">${esc(s.messageId)}</span>`)}
+        ${row('Sender IP', r.senderIp ? `${esc(r.senderIp)} <span class="muted">- from ${esc(r.senderIpSource)}</span>` : '')}
+        ${row('HELO name', esc(r.helo))}
+        ${row("Sender's client IP (X-Originating-IP)", esc(s.originatingIp))}
+        ${row('Mail software', esc(s.mailer))}
+        ${row('Sender header', addr(s.sender))}
+        ${row('List-Unsubscribe', esc(s.listUnsubscribe), 'full-width')}
+      </div></div>`;
+    }
+
+    function authBlock(a) {
+      return a.results.map(x => `<div class="auth-row"><span class="auth-method">${esc(x.method)}</span><span>${pill(x.result, x.result)}</span>
+        <span class="muted">${Object.entries(x.props).map(([k, v]) => `${esc(k)}=<span style="color:#e6edf3">${esc(v)}</span>`).join(' · ')}${x.comment ? `<br>${esc(x.comment)}` : ''}</span></div>`).join('');
+    }
+
+    function renderAuth(r) {
+      let html = `<div class="card"><div class="card-header"><span class="card-title">Authentication</span></div>`;
+      html += `<div class="sub-title">Reported by receiving servers</div>`;
+      html += r.authResults.length ? r.authResults.map(a => `<div class="muted" style="font-size:0.8rem;margin:8px 0 6px">${esc(a.authserv)}</div>${authBlock(a)}`).join('') : '<p class="muted">No Authentication-Results header.</p>';
+      if (r.arc) html += `<p class="notes">ARC chain: ${r.arc.sets} set(s) - ${r.arc.chain.map(c => `i=${esc(c.i)} ${esc(c.domain)} cv=${esc(c.cv)}`).join(', ')}</p>`;
+
+      if (!r.live) {
+        html += `<div class="sub-title">Re-checked now</div><p class="muted">Live DNS checks are off - tick "Live DNS checks" to verify DKIM, SPF, DMARC and BIMI yourself.</p>`;
+        if (r.dkimSignatures.length) html += `<div class="sub-title">DKIM signatures</div>${r.dkimSignatures.map(d => `<div class="auth-row"><span class="auth-method">DKIM</span><span>${pill('not checked', 'none')}</span><span class="muted">d=${esc(d.domain)} · s=${esc(d.selector)} · a=${esc(d.algorithm)}</span></div>`).join('')}`;
+        return html + renderBimi(r) + '</div>';
+      }
+      const L = r.live;
+      html += `<div class="sub-title">Re-checked now (current DNS)</div>`;
+      html += L.dkim.length ? L.dkim.map(d => `<div class="auth-row"><span class="auth-method">DKIM</span><span>${pill(d.result, d.result)}</span><span>
+          <span class="muted">d=</span>${esc(d.domain)} <span class="muted">· s=</span>${esc(d.selector)} <span class="muted">· a=</span>${esc(d.algorithm)} <span class="muted">· c=</span>${esc(d.canonicalization)}${d.keyBits ? ` <span class="muted">· key</span> ${d.keyBits} bits` : ''}
+          <div class="notes">${esc(d.detail)}</div>${notes(d.notes)}
+          <div class="notes">Signed headers: ${esc(d.signedHeaders.join(', '))}</div></span></div>`).join('')
+        : `<div class="auth-row"><span class="auth-method">DKIM</span><span>${pill('none', 'none')}</span><span class="muted">The message has no DKIM signature.</span></div>`;
+      html += `<div class="auth-row"><span class="auth-method">SPF</span><span>${pill(L.spf.result, L.spf.result)}</span><span>
+        ${L.spf.ip ? `${esc(L.spf.ip)} <span class="muted">sending for</span> ${esc(L.spf.domain)}` : ''}<div class="notes">${esc(L.spf.comment || '')}</div>
+        ${L.spf.record ? `<div class="record-box">${esc(L.spf.record)}</div>` : ''}</span></div>`;
+      const dm = L.dmarcRecord;
+      html += `<div class="auth-row"><span class="auth-method">DMARC</span><span>${pill(L.dmarc.result, L.dmarc.result)}</span><span>
+        ${dm.found ? `<span class="muted">policy</span> ${esc(dm.policy)} <span class="muted">· pct</span> ${esc(dm.pct)} <span class="muted">· alignment</span> dkim=${dm.adkim === 's' ? 'strict' : 'relaxed'}, spf=${dm.aspf === 's' ? 'strict' : 'relaxed'}${dm.at !== r.summary.from?.domain ? ` <span class="muted">(record inherited from ${esc(dm.at)})</span>` : ''}` : ''}
+        <div class="notes">${esc(L.dmarc.detail)}${L.dmarc.headersOnlyDkim ? ' (DKIM verified on headers only)' : ''}</div>
+        ${dm.found ? `<div class="record-box">${esc(dm.record)}</div>` : ''}</span></div>`;
+      return html + renderBimi(r) + '</div>';
+    }
+
+    function renderBimi(r) {
+      const b = r.live?.bimi;
+      const indicator = r.bimiIndicator;
+      if (!b && !indicator) return '';
+      let html = `<div class="sub-title">BIMI (brand logo)</div>`;
+      if (b && !b.found && !indicator) return html + `<p class="muted">${esc(b.error)}.</p>`;
+      const src = indicator || b?.logo?.dataUri;
+      const logo = src ? `<img src="${esc(src)}" alt="BIMI logo">` : `<div class="no-logo">${esc(b?.logo?.error || 'no logo')}</div>`;
+      // The logo belongs to the domain the message *claims* to be from - only meaningful if DMARC passed.
+      if (r.live && r.live.dmarc.result !== 'pass' && b?.found && !indicator) {
+        html += `<div class="flag high" style="margin-bottom:10px"><div class="flag-title">⚠️ This logo does not vouch for this message</div>
+          <div class="flag-detail">The logo below belongs to ${esc(b.at)}, the domain in the From address. This message failed DMARC, so real mail clients would not show it - it may be impersonating ${esc(b.at)}.</div></div>`;
+      }
+      html += `<div class="bimi">${logo}<div style="min-width:0;flex:1">`;
+      if (indicator) html += `<p>${pill('Logo validated by receiving server', 'pass')} <span class="muted" style="font-size:0.8rem">(from the BIMI-Indicator header)</span></p>`;
+      if (b?.found) {
+        html += `<div class="info-grid" style="margin-top:8px">${row('Record', `<span class="mono">${esc(b.selector)}._bimi.${esc(b.at)}</span>`)}
+          ${row('Eligible (DMARC enforced)', b.dmarcEligible ? '<span class="pass">Yes</span>' : '<span class="fail">No</span>')}
+          ${row('Logo URL (l=)', esc(b.logoUrl || 'not set'), 'full-width')}
+          ${row('Certificate (a=)', esc(b.authorityUrl || 'not set'), 'full-width')}</div>${notes(b.notes)}
+          <div class="record-box">${esc(b.record)}</div>`;
+      } else if (b) html += `<p class="muted">${esc(b.error)}.</p>`;
+      return html + '</div></div>';
+    }
+
+    function hopRbl(r, ip) {
+      const list = r.live?.hopRbl?.[ip];
+      if (!list) return '<span class="muted">-</span>';
+      const listed = list.filter(x => x.status === 'listed');
+      if (listed.length) return `<span class="fail" title="${esc(listed.map(x => x.zone).join(', '))}">LISTED (${listed.length})</span>`;
+      return list.some(x => x.status === 'clean') ? '<span class="pass">Clean</span>' : '<span class="warn" title="Lookups were refused or failed">Unknown</span>';
+    }
+
+    function renderPath(r) {
+      if (!r.hops.length) return '';
+      const maxDelay = Math.max(1, ...r.hops.map(h => Math.abs(h.delaySeconds || 0)));
+      const bar = s => s == null ? '' : `<div class="delay-bar ${s < 0 ? 'neg' : s > 3600 ? 'slow' : ''}" style="width:${Math.max(3, Math.round(Math.abs(s) / maxDelay * 100))}%"></div>`;
+      const rows = r.hops.map(h => {
+        const tags = [h.senderIp ? '<span class="tag sender">sender IP</span>' : '', h.privateIp ? '<span class="tag">private</span>' : '',
+          h.authenticated ? '<span class="tag auth">authenticated</span>' : ''].join('');
+        const from = [h.helo && `<span class="mono">${esc(h.helo)}</span>`, h.rdns && h.rdns !== h.helo && `<span class="muted">rDNS</span> ${esc(h.rdns)}`, h.ip && `<span class="mono">${esc(h.ip)}</span>`].filter(Boolean).join('<br>');
+        const proto = h.protocol ? esc(h.protocol) : '';
+        const tls = h.ip || h.protocol ? (h.tls ? `<span class="tag tls">🔒 ${esc(h.tlsVersion || 'TLS')}</span>` : (h.ip && !h.privateIp ? '<span class="tag notls">no TLS shown</span>' : '')) : '';
+        return `<tr class="${h.senderIp ? 'sender-row' : ''}" title="${esc(h.raw)}"><td>${h.number}</td><td>${time(h.date) || `<span class="muted">${esc(h.dateRaw)}</span>`}</td><td style="min-width:70px">${delay(h.delaySeconds)}${bar(h.delaySeconds)}</td>
+          <td>${from || '<span class="muted">-</span>'}${tags ? '<br>' + tags : ''}</td><td class="mono">${esc(h.by || '')}</td><td>${proto}${proto && tls ? '<br>' : ''}${tls}</td>
+          ${r.live ? `<td>${h.ip && !h.privateIp ? hopRbl(r, h.ip) : '<span class="muted">-</span>'}</td>` : ''}</tr>`;
+      }).join('');
+      return `<div class="card"><div class="card-header"><span class="card-title">Delivery path</span><span class="muted" style="font-size:0.8rem">oldest first · hover a row for the raw header</span></div>
+        <table><tr><th>#</th><th>Time</th><th>Delay</th><th>From</th><th>By</th><th>With</th>${r.live ? '<th>Blocklist</th>' : ''}</tr>${rows}</table></div>`;
+    }
+
+    function renderSenderIp(r) {
+      const s = r.live?.senderIp;
+      if (!s) return '';
+      const rbl = s.rbl.length ? `<div class="sub-title">Blocklists</div><div class="rbl-grid">${s.rbl.map(x => `<div class="rbl-item"><span class="muted">${esc(x.zone)}</span>${
+        { listed: '<span class="fail">LISTED</span>', clean: '<span class="pass">Clean</span>', refused: '<span class="warn" title="The blocklist refused the query (common with public DNS resolvers)">Refused</span>', error: '<span class="muted">Error</span>' }[x.status]}</div>`).join('')}</div>`
+        : '<p class="notes">Blocklist checks run for IPv4 addresses only.</p>';
+      return `<div class="card"><div class="card-header"><span class="card-title">Sender IP - ${esc(s.ip)}</span></div><div class="info-grid">
+        ${row('Reverse DNS (PTR)', s.ptr ? esc(s.ptr) : '<span class="warn">none</span>')}
+        ${row('Forward-confirmed', s.ptr ? (s.confirmed ? '<span class="pass">Yes</span>' : '<span class="warn">No</span>') : '-')}</div>${rbl}</div>`;
+    }
+
+    function renderVendors(r) {
+      if (!r.vendors.length) return '';
+      return `<div class="card"><div class="card-header"><span class="card-title">Spam filter verdicts</span></div>${r.vendors.map(g => `<div class="sub-title">${esc(g.source)}</div>
+        <table>${g.items.map(i => `<tr><td style="width:30%" class="muted">${esc(i.label)}</td><td style="width:25%" class="mono">${esc(i.value)}</td><td class="${esc(i.level)}" style="font-weight:400">${esc(i.meaning)}</td></tr>`).join('')}</table>`).join('')}</div>`;
+    }
+
+    function renderHeaders(r) {
+      return `<div class="card"><details><summary>All headers (${r.headers.length})</summary>
+        <input class="filter" id="hdrFilter" placeholder="Filter headers...">
+        <table id="hdrTable">${r.headers.map(h => `<tr data-s="${esc((h.name + ' ' + h.value).toLowerCase())}"><td style="width:24%" class="mono">${esc(h.name)}</td><td class="mono">${esc(h.value)}</td></tr>`).join('')}</table>
+      </details></div>`;
+    }
+  </script>
+</body>
+</html>
